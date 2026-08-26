@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 
 from .model import QueryFrame
 from .resolver import resolve_camera
-from .datetime_resolver import resolve_datetime
+from .database_resolver import resolve_datetime
 
 DEFAULT_ROW_LIMIT = 1000
 

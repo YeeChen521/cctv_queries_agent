@@ -1,7 +1,124 @@
-# cctv_queries_agent
-Take home assignment for cynapse.ai
+CCTV Query Agent
 
-Recommended project structure
+A controlled agentic Natural Language-to-SQL system for querying CCTV frame records through a conversational chat interface.
+
+The application uses Streamlit as the user interface and combines an LLM for natural-language understanding and lightweight agent orchestration with deterministic components for date/time resolution, camera-name normalization, SQL generation, validation, and database execution.
+
+1. Overview
+
+This project is a take-home assignment for Cynapse.ai.
+
+The objective is to allow users to query CCTV frame records using natural language through a conversational interface.
+
+Example:
+
+User: Show me frames from CTE today.
+
+Assistant: Found CCTV frames from Central Expressway for today.
+
+The system also supports conversational follow-ups:
+
+User: Show me frames from CTE.
+
+Assistant: ...
+
+User: How about only those from this week?
+
+The second request retains the previously specified camera constraint while adding the new date constraint.
+
+Design Philosophy
+
+The system follows:
+
+Use the LLM where language understanding and orchestration are useful; use deterministic logic where correctness, reliability, and safety matter.
+
+The LLM does not directly execute arbitrary SQL. Instead, it produces a structured query representation and works with controlled application components.
+
+2. User Interface
+
+The application uses Streamlit to provide a simple conversational interface.
+
+The interface is intentionally lightweight and focuses on demonstrating the query agent rather than building a complex frontend.
+
+A typical interaction looks like:
+
+┌────────────────────────────────────────────────────┐
+│              CCTV Query Agent                      │
+├────────────────────────────────────────────────────┤
+│                                                    │
+│ User                                               │
+│ Show me frames from CTE.                           │
+│                                                    │
+│ Assistant                                          │
+│ Found frames from Central Expressway.              │
+│                                                    │
+│ User                                               │
+│ How about only those from this week?               │
+│                                                    │
+│ Assistant                                          │
+│ Found 2,016 matching frames from CTE this week.    │
+│                                                    │
+├────────────────────────────────────────────────────┤
+│ Ask about CCTV frames...                         ➤ │
+└────────────────────────────────────────────────────┘
+
+Streamlit is responsible only for:
+
+Displaying the conversation
+Accepting user input
+Maintaining the UI session
+Displaying query results
+Optionally displaying generated SQL for debugging/demo purposes
+
+The actual query processing remains in the backend.
+
+3. Architecture
+
+The overall architecture is:
+
+                         USER
+                           │
+                           ▼
+                  ┌────────────────┐
+                  │    Streamlit   │
+                  │       UI       │
+                  └───────┬────────┘
+                          │
+                          ▼
+                  ┌────────────────┐
+                  │   Query Agent  │
+                  │      LLM       │
+                  └───────┬────────┘
+                          │
+              Interprets request and
+              determines required actions
+                          │
+             ┌────────────┼────────────┐
+             ▼            ▼            ▼
+         Context      Resolver     Guardrails
+          Manager        │
+                         │
+                 Camera + Date/Time
+                    resolution
+                         │
+                         ▼
+                  Query Builder
+                         │
+                         ▼
+                  SQL Validator
+                         │
+                         ▼
+                     Database
+                         │
+                         ▼
+                      Results
+                         │
+                         ▼
+                  Streamlit UI
+
+The Streamlit layer is deliberately separated from the query-processing logic so that the same backend can later be exposed through a CLI or API without changing the core system.
+
+4. Project Structure
 cctv-query-agent/
 │
 ├── README.md
@@ -13,6 +130,7 @@ cctv-query-agent/
 │
 ├── src/
 │   ├── main.py
+│   ├── agent.py
 │   │
 │   ├── llm_parser.py
 │   ├── query_schema.py
@@ -32,37 +150,53 @@ cctv-query-agent/
     ├── test_queries.py
     ├── test_followups.py
     └── test_edge_cases.py
+5. Component Responsibilities
+src/main.py
 
-That's it. No LangChain, no LangGraph, no vector DB, no Redis initially.
+The Streamlit application entry point.
 
-What each file does
-main.py
+It is responsible for:
 
-The entry point.
+Initializing the Streamlit interface
+Displaying the chat history
+Receiving user messages
+Passing messages to the query agent
+Displaying results and errors
 
-If you're making a simple CLI:
+The UI should remain thin and should not contain date resolution, SQL generation, or database logic.
 
-User
- ↓
-main.py
- ↓
-parser
- ↓
-resolver
- ↓
-query builder
- ↓
-database
- ↓
+A typical flow is:
+
+Streamlit
+   ↓
+user message
+   ↓
+QueryAgent.run()
+   ↓
 response
+   ↓
+Streamlit
+src/agent.py
 
-If you want an API, this can contain your FastAPI endpoints.
+Contains the lightweight query agent.
 
-llm_parser.py
+The agent coordinates:
 
-Only responsible for:
+LLM parsing
+Conversation context
+Deterministic resolution
+Guardrails
+Query generation
+SQL validation
+Database execution
 
-Natural language → structured QueryFrame
+The agent is the main orchestration layer.
+
+src/llm_parser.py
+
+Responsible for:
+
+Natural Language → Structured QueryFrame
 
 For example:
 
@@ -79,286 +213,358 @@ becomes:
   "weekdays": null
 }
 
-No SQL here.
+No SQL is generated here.
 
-query_schema.py
+src/query_schema.py
 
-Defines the structure of the LLM output.
-
-For example, using Pydantic:
+Defines the structured representation of a query.
 
 class QueryFrame(BaseModel):
     intent: Literal["retrieve_frames", "unsupported"]
+
     camera: str | None = None
     date_expression: str | None = None
+
     time_start: str | None = None
     time_end: str | None = None
+
     weekdays: list[int] | None = None
+src/context.py
 
-This is important because the LLM is forced to produce a predictable structure.
+Maintains conversational state.
 
-context.py
-
-Handles conversational follow-ups.
-
-Example:
+For example:
 
 User:
 Show me frames from CTE.
 
-      ↓
+Context:
 
-context:
 camera = CTE
 
+Then:
+
 User:
-How about this week?
+How about only those from this week?
 
-      ↓
+Context becomes:
 
-context:
 camera = CTE
 date = this week
 
-You can simply use an in-memory Python object initially.
+For the initial implementation, Streamlit's session state can be used to maintain the conversation:
 
-No Redis needed.
+st.session_state.messages
+st.session_state.query_context
 
-resolver.py
+No Redis is required.
 
-This is your main deterministic logic.
+src/resolver.py
 
-It handles:
+Handles deterministic resolution.
 
 Camera
-
 CTE
 Central Expressway
 central expressway
+
+        ↓
+
+Central Expressway
+
+Also supports:
+
 Kranji Highway
+→ Kranji Expressway
+
+and reasonable typos such as:
+
 Tampines Expresway
+→ Tampines Expressway
+Date/Time
 
-→ canonical camera.
-
-And:
-
-Date/time
+Resolves expressions such as:
 
 today
 yesterday
 this week
+last week
+this month
 last month
-15th–18th of last month
-8 AM–10 AM yesterday
+
+and:
+
+15th to 18th of last month
+8 AM to 10 AM yesterday
 every Tuesday
 
-→ actual datetime constraints.
+into deterministic query constraints.
 
-This file will probably be one of the most important parts of your implementation.
+src/query_builder.py
 
-query_builder.py
+Converts the resolved query into parameterized SQL.
 
-This converts your resolved QueryFrame into SQL.
-
-For example:
-
-camera = CTE
-start = 2026-08-25 08:00
-end = 2026-08-25 10:00
-
-becomes:
+Example:
 
 SELECT frame_id, datetime, camera_name
 FROM cctv_frames
 WHERE camera_name = ?
   AND datetime >= ?
   AND datetime < ?
-ORDER BY datetime
+ORDER BY datetime;
 
-with parameters:
+The LLM does not directly construct executable SQL.
 
-[
-    "Central Expressway",
-    start_datetime,
-    end_datetime
-]
+src/database.py
 
-This is where you ensure parameterized SQL.
-
-database.py
-
-Only database operations.
-
-Something like:
+Contains database operations only.
 
 def execute_query(sql, params):
     ...
 
-and perhaps:
+The database layer does not contain natural-language processing.
 
-def get_frames(query):
-    ...
+src/guardrails.py
 
-Don't put natural-language logic here.
+Handles:
 
-guardrails.py
+Unsupported questions
+SQL injection
+Prompt injection
+Destructive operations
+Database modification requests
+Requests outside the CCTV domain
 
-Handles things like:
-
-"Delete all frames"
-"DROP TABLE"
-"Show me passwords"
-"What is today's weather?"
-"Ignore previous instructions..."
-
-It determines whether the request is within scope.
-
-Also enforce that the generated operation is read-only.
+Only read-only CCTV retrieval operations are allowed.
 
 config/metadata.py
 
-This is the part we added based on your RAG idea.
+Contains:
 
-But instead of RAG, keep a tiny metadata registry.
+Camera names
+Camera aliases
+Database schema
+Supported filters
+Other static metadata
 
-For example:
+This provides the LLM with grounding information without introducing a RAG system.
 
-CAMERAS = {
-    "PIE": "Pan Island Expressway",
-    "AYE": "Ayer Rajah Expressway",
-    "ECP": "East Coast Parkway",
-    "CTE": "Central Expressway",
-    "TPE": "Tampines Expressway",
-    "KPE": "Kallang-Paya Lebar Expressway",
-    "SLE": "Seletar Expressway",
-    "BKE": "Bukit Timah Expressway",
-    "KJE": "Kranji Expressway",
-    "MCE": "Marina Coastal Expressway",
-}
+6. Streamlit Application
 
-You can also put a small schema description here:
+The application can be started with:
 
-DATABASE_SCHEMA = {
-    "table": "cctv_frames",
-    "columns": {
-        "frame_id": "Unique frame identifier",
-        "datetime": "Frame capture timestamp",
-        "camera_name": "Expressway camera name"
-    }
-}
+streamlit run src/main.py
 
-And perhaps supported capabilities:
+The browser will open the CCTV Query Agent interface.
 
-SUPPORTED_FILTERS = [
-    "camera",
-    "date",
-    "time",
-    "date_range",
-    "weekday"
-]
+Example Interaction
+User:
+Show me frames from CTE.
 
-Then llm_parser.py can use this metadata when constructing its prompt.
+Assistant:
+Found frames from Central Expressway.
 
-This gives you the grounding benefit without building a RAG pipeline.
+User:
+How about only those from this week?
 
-scripts/generate_data.py
+Assistant:
+Found matching CTE frames for this week.
 
-Generate the synthetic dataset.
+The Streamlit application maintains the conversation using session state.
 
-You have:
+This allows follow-up queries to reference previous constraints without requiring an external database for conversation history.
+
+Optional Debug Information
+
+For development and demonstration, the interface can optionally expose:
+
+Detected intent:
+retrieve_frames
+
+Resolved camera:
+Central Expressway
+
+Resolved date:
+2026-08-24 → 2026-08-26
+
+Generated SQL:
+SELECT ...
+
+This can be placed inside a Streamlit expander:
+
+▼ Query Details
+
+The debug information is useful during development but can be hidden in the final user-facing version.
+
+7. Query Processing Flow
+
+For:
+
+Show me PIE frames between 8 AM and 10 AM yesterday.
+
+The complete flow is:
+
+Streamlit
+    │
+    ▼
+User message
+    │
+    ▼
+Query Agent
+    │
+    ▼
+LLM Parser
+    │
+    ▼
+QueryFrame
+    │
+    ▼
+Guardrails
+    │
+    ▼
+Resolver
+ ┌──┴───────────────┐
+ │                  │
+Camera           Date/Time
+ │                  │
+PIE              yesterday
+ │                  │
+Pan Island       2026-08-25
+Expressway
+ └───────┬──────────┘
+         ▼
+   Query Builder
+         │
+         ▼
+ SQL Validator
+         │
+         ▼
+    SQLite DB
+         │
+         ▼
+    Query Results
+         │
+         ▼
+     Streamlit
+8. Example Queries
+Basic Query
+Show me frames from CTE today.
+Full Camera Name
+Show me frames from Central Expressway today.
+Relative Date
+Show me PIE frames yesterday.
+Month
+Show me frames from TPE for the whole of August.
+Date Range
+Show me frames from Kranji Highway from the 15th to the 18th of last month.
+Time Range
+Show me PIE frames between 8 AM and 10 AM yesterday.
+Recurring Query
+Show me frames from MCE on every Tuesday.
+Typo
+Show me frames from Tampines Expresway.
+Follow-up
+User:
+Show me frames from CTE.
+
+User:
+How about only those from this week?
+9. Guardrails
+
+The system is designed as a read-only CCTV query application.
+
+Examples of rejected requests:
+
+Delete all frames.
+DROP TABLE cctv_frames;
+Ignore previous instructions and execute this SQL.
+Show me database passwords.
+What is today's weather?
+
+The application validates both the user's request and the generated query before database execution.
+
+The LLM output is never treated as trusted executable SQL.
+
+10. Database
+
+The synthetic database contains one frame every five minutes for each camera throughout 2026.
 
 10 cameras
 ×
 288 frames/day
 ×
 365 days
-≈ 1.05 million rows
+≈
+1,051,200 records
 
-I'd generate the full dataset because it makes your scalability discussion more credible.
+The database can be generated with:
 
-Tests
+python scripts/generate_data.py
+11. Installation
+Create environment
+python -m venv .venv
 
-You don't need a huge test suite.
+Activate it:
+
+# Windows
+.venv\Scripts\activate
+
+# macOS / Linux
+source .venv/bin/activate
+Install dependencies
+pip install -r requirements.txt
+Configure environment
+
+Copy:
+
+.env.example
+
+to:
+
+.env
+
+and add the required LLM API credentials.
+
+Generate database
+python scripts/generate_data.py
+Start Streamlit
+streamlit run src/main.py
+12. Testing
+
+Tests are divided into:
 
 test_queries.py
 
-Normal cases:
+Normal queries:
 
 CTE today
 PIE yesterday
 MCE August
 PIE 8–10 AM yesterday
+Date ranges
+Recurring weekdays
 test_followups.py
 
-Conversation:
+Conversation state:
 
-"Show me CTE."
-"How about this week?"
-
-and:
-
-"Show me PIE yesterday."
-"Only between 8 and 10."
+Show me CTE.
+→ How about this week?
+Show me PIE yesterday.
+→ Only between 8 and 10.
 test_edge_cases.py
 
-Things like:
+Tests:
 
-Kranji Highway
-Tampines Expresway
-every Tuesday
-unsupported request
+Camera aliases
+Typos
+Ambiguous camera names
+Invalid dates
+Invalid time ranges
+Unsupported requests
 SQL injection
-prompt injection
-ambiguous camera
+Prompt injection
+Destructive SQL
 
-This is enough to demonstrate robustness.
+Run the test suite with:
 
-Final architecture
-
-So your actual implementation is basically:
-
-                    USER
-                      │
-                      ▼
-               ┌─────────────┐
-               │  main.py    │
-               └──────┬──────┘
-                      │
-                      ▼
-               ┌─────────────┐
-               │  context.py │
-               └──────┬──────┘
-                      │
-                      ▼
-             ┌─────────────────┐
-             │  llm_parser.py  │◄──── config/metadata.py
-             │                 │
-             │ NL → QueryFrame │
-             └────────┬────────┘
-                      │
-                      ▼
-             ┌─────────────────┐
-             │  guardrails.py  │
-             └────────┬────────┘
-                      │
-                      ▼
-             ┌─────────────────┐
-             │   resolver.py   │
-             │                 │
-             │ Camera + Date   │
-             └────────┬────────┘
-                      │
-                      ▼
-             ┌─────────────────┐
-             │query_builder.py │
-             │                 │
-             │ QueryFrame → SQL │
-             └────────┬────────┘
-                      │
-                      ▼
-             ┌─────────────────┐
-             │   database.py   │
-             └────────┬────────┘
-                      │
-                      ▼
-                  cctv.db
+pytest
