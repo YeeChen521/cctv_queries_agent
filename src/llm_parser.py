@@ -15,16 +15,34 @@ The parser does NOT:
 - Access the database.
 
 Those responsibilities belong to deterministic components downstream.
+
+--------------------------------------------------------------------------
+PROVIDER FLEXIBILITY
+--------------------------------------------------------------------------
+
+The actual model call is delegated to one of the LLMProvider
+implementations below. Which one is used is chosen entirely by the
+LLM_PROVIDER environment variable — nothing else in the codebase
+(agent.py, tests, etc.) needs to change to switch between them, since
+they all speak the same interface: parse(system_prompt, user_content)
+-> QueryFrame.
+
+    LLM_PROVIDER=openai     (default) -> OpenAIProvider
+    LLM_PROVIDER=anthropic            -> AnthropicProvider (Claude)
+    LLM_PROVIDER=gemini               -> GeminiProvider
+
+Each provider's SDK is imported lazily, inside its own __init__, so you
+only need the one package installed for whichever provider you
+actually select (e.g. you don't need `anthropic` installed to run with
+LLM_PROVIDER=openai).
 """
 
 import os
-from typing import Literal
+from typing import Protocol
 
 from dotenv import load_dotenv
-from openai import OpenAI
-from pydantic import BaseModel, Field
 
-from .model import QueryFrame
+from .query_schema import QueryFrame
 from config.metadata import (
     CAMERAS,
     SUPPORTED_FILTERS,
@@ -39,17 +57,154 @@ from config.metadata import (
 
 load_dotenv()
 
-API_KEY = os.getenv("OPENAI_API_KEY")
 
-if not API_KEY:
-    raise RuntimeError(
-        "OPENAI_API_KEY is not set. "
-        "Create a .env file with OPENAI_API_KEY=your_key."
-    )
+# ============================================================================
+# Provider interface
+# ============================================================================
 
-client = OpenAI(api_key=API_KEY)
 
-MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
+class LLMProvider(Protocol):
+    """Anything that can turn (system_prompt, user_content) into a QueryFrame."""
+
+    def parse(self, system_prompt: str, user_content: str) -> QueryFrame: ...
+
+
+class OpenAIProvider:
+    """Uses OpenAI's Responses API structured-output parsing (`responses.parse`)."""
+
+    def __init__(self, api_key: str, model: str) -> None:
+        from openai import OpenAI  # lazy: only needed for this provider
+
+        self._client = OpenAI(api_key=api_key)
+        self._model = model
+
+    def parse(self, system_prompt: str, user_content: str) -> QueryFrame:
+        response = self._client.responses.parse(
+            model=self._model,
+            input=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
+            ],
+            text_format=QueryFrame,
+        )
+
+        query_frame = response.output_parsed
+        if query_frame is None:
+            raise RuntimeError("OpenAI did not return a valid QueryFrame.")
+        return query_frame
+
+
+class AnthropicProvider:
+    """
+    Uses Claude's native Structured Outputs (GA as of early 2026):
+    `output_config={"format": {"type": "json_schema", "schema": ...}}` on
+    messages.create(). This constrains generation at the token level, so
+    the response is guaranteed to be valid JSON matching QueryFrame's
+    schema — no prompt-based "please return JSON" needed.
+
+    See: https://platform.claude.com/docs/en/build-with-claude/structured-outputs
+    """
+
+    def __init__(self, api_key: str, model: str) -> None:
+        from anthropic import Anthropic, transform_schema  # lazy import
+
+        self._client = Anthropic(api_key=api_key)
+        self._model = model
+        # transform_schema adapts a Pydantic-generated JSON Schema to what
+        # Claude's structured outputs support (e.g. folding unsupported
+        # constraints into field descriptions). Doing this once here,
+        # rather than per-request, avoids repeating the work on every call.
+        self._schema = transform_schema(QueryFrame.model_json_schema())
+
+    def parse(self, system_prompt: str, user_content: str) -> QueryFrame:
+        response = self._client.messages.create(
+            model=self._model,
+            max_tokens=1024,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_content}],
+            output_config={
+                "format": {"type": "json_schema", "schema": self._schema},
+            },
+        )
+
+        raw_json = response.content[0].text
+        return QueryFrame.model_validate_json(raw_json)
+
+
+class GeminiProvider:
+    """
+    Uses the Gemini API's native structured-output support: passing a
+    Pydantic model class directly as `response_schema` makes the SDK
+    return an already-validated instance via `response.parsed`.
+
+    See: https://ai.google.dev/gemini-api/docs/structured-output
+    """
+
+    def __init__(self, api_key: str, model: str) -> None:
+        from google import genai  # lazy import
+        from google.genai import types
+
+        self._client = genai.Client(api_key=api_key)
+        self._model = model
+        self._types = types
+
+    def parse(self, system_prompt: str, user_content: str) -> QueryFrame:
+        response = self._client.models.generate_content(
+            model=self._model,
+            contents=user_content,
+            config=self._types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                response_mime_type="application/json",
+                response_schema=QueryFrame,
+            ),
+        )
+
+        query_frame = response.parsed
+        if query_frame is None:
+            raise RuntimeError("Gemini did not return a valid QueryFrame.")
+        return query_frame
+
+
+def _require_env(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(
+            f"{name} is not set. Add it to your .env file, or set "
+            f"LLM_PROVIDER to a provider that doesn't need it."
+        )
+    return value
+
+
+_PROVIDER_FACTORIES = {
+    "openai": lambda: OpenAIProvider(
+        api_key=_require_env("OPENAI_API_KEY"),
+        model=os.getenv("OPENAI_MODEL", "gpt-5-mini"),
+    ),
+    "anthropic": lambda: AnthropicProvider(
+        api_key=_require_env("ANTHROPIC_API_KEY"),
+        model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5"),
+    ),
+    "gemini": lambda: GeminiProvider(
+        api_key=_require_env("GEMINI_API_KEY"),
+        model=os.getenv("GEMINI_MODEL", "gemini-3-flash"),
+    ),
+}
+
+
+def _build_provider() -> LLMProvider:
+    provider_name = os.getenv("LLM_PROVIDER", "openai").strip().lower()
+    factory = _PROVIDER_FACTORIES.get(provider_name)
+
+    if factory is None:
+        raise RuntimeError(
+            f"Unknown LLM_PROVIDER '{provider_name}'. "
+            f"Supported values: {', '.join(_PROVIDER_FACTORIES)}."
+        )
+
+    return factory()
+
+
+_provider: LLMProvider = _build_provider()
 
 # ============================================================================
 # System Prompt
@@ -318,31 +473,10 @@ Use this context only to resolve relevant follow-up references.
 Do not introduce constraints that are unrelated to the current request.
 """
 
-    response = client.responses.parse(
-        model=MODEL,
-        input=[
-            {
-                "role": "system",
-                "content": SYSTEM_PROMPT,
-            },
-            {
-                "role": "user",
-                "content": (
-                    context_message
-                    + "\nCurrent user request:\n"
-                    + user_query
-                ),
-            },
-        ],
-        text_format=QueryFrame,
+    query_frame = _provider.parse(
+        system_prompt=SYSTEM_PROMPT,
+        user_content=context_message + "\nCurrent user request:\n" + user_query,
     )
-
-    query_frame = response.output_parsed
-
-    if query_frame is None:
-        raise RuntimeError(
-            "The LLM did not return a valid QueryFrame."
-        )
 
     return query_frame
 

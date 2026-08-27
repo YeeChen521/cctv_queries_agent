@@ -1,6 +1,12 @@
 streamlit>=1.38
-openai>=1.40
 pydantic>=2.7
 python-dotenv>=1.0
 rapidfuzz>=3.9
 pytest>=8.0
+
+# LLM providers — only the one you set LLM_PROVIDER to needs to be
+# installed. All three are listed here for convenience; feel free to
+# comment out the ones you don't use.
+openai>=1.40         # LLM_PROVIDER=openai (default)
+anthropic>=1.1       # LLM_PROVIDER=anthropic (Claude)
+google-genai>=1.0    # LLM_PROVIDER=gemini

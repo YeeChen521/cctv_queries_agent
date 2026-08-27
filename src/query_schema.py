@@ -1,26 +1,74 @@
 """
-Normalized, fully-resolved representation of a user query.
+Structured query representations for the CCTV query agent.
 
-This is the single object query_builder.py consumes. By the time a
-ResolvedQuery exists, all ambiguity has been settled:
+This module defines both ends of the resolution pipeline:
 
-- camera is either one canonical camera name or None (no camera filter).
-- datetime bounds, if present, are absolute, concrete instants.
-- time-of-day bounds (if present) are "HH:MM" strings applied within
-  every day of the range.
-- weekday is a SQLite strftime('%w') integer (0=Sunday ... 6=Saturday).
+- QueryFrame:    the LLM's raw, unresolved interpretation of a user
+                 request (camera as typed, date expressions as
+                 phrases, etc). No validation or business logic.
 
-query_builder.py never has to interpret natural language, resolve
-aliases, or reason about dates — that all happens upstream, here.
+- ResolvedQuery: the deterministic, fully-resolved query that
+                 query_builder.py consumes. By the time a ResolvedQuery
+                 exists, all ambiguity has been settled — camera is a
+                 canonical name (or None), datetime bounds are absolute
+                 instants, time-of-day bounds are "HH:MM" strings, and
+                 weekday is a SQLite strftime('%w') integer.
+
+build_resolved_query() is the glue between the two: it fuses
+resolver.py's camera + date/time resolution into a ResolvedQuery, and
+is where "we couldn't safely interpret this" rejections are produced
+for a semantically-valid-but-unresolvable request (bad camera,
+ambiguous date). Explicit malicious-intent guardrails (SQL injection,
+prompt injection, etc.) belong in guardrails.py and run before this is
+ever called.
 """
+
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from .model import QueryFrame
-from .resolver import resolve_camera
-from .database_resolver import resolve_datetime
+from .resolver import resolve_camera, resolve_datetime
 
 DEFAULT_ROW_LIMIT = 1000
+
+
+# ============================================================================
+# QueryFrame — raw LLM output
+# ============================================================================
+
+
+class QueryFrame(BaseModel):
+    """Structured, but not yet resolved, interpretation of a user request."""
+
+    intent: Literal["retrieve_frames", "unsupported", "clarification_needed"]
+
+    # Camera, exactly as worded by the user (e.g. "Kranji Highway", "CTE").
+    camera: str | None = None
+
+    # Relative / natural-language date expressions the LLM chose not to
+    # resolve itself (e.g. "yesterday", "15th to 18th of last month").
+    date_expression: str | None = None
+
+    # Explicit dates only, already normalized to ISO (YYYY-MM-DD) by the LLM.
+    start_date: str | None = None
+    end_date: str | None = None
+
+    # Clearly-stated times of day, normalized to HH:MM by the LLM.
+    start_time: str | None = None
+    end_time: str | None = None
+
+    # Recurring weekday conditions, e.g. "every Tuesday".
+    weekday: str | None = None
+    recurring: bool = False
+
+    # Set when intent == "clarification_needed".
+    needs_clarification: bool = False
+    clarification_reason: str | None = None
+
+
+# ============================================================================
+# ResolvedQuery — deterministic, ready-to-build query
+# ============================================================================
 
 
 class ResolvedQuery(BaseModel):
@@ -49,15 +97,8 @@ class ResolvedQuery(BaseModel):
 
 def build_resolved_query(frame: QueryFrame) -> ResolvedQuery:
     """
-    Fuse the LLM's QueryFrame with the deterministic camera and
-    date/time resolvers into a single ResolvedQuery.
-
-    This function is the only place camera resolution and date/time
-    resolution results are combined, and the only place guardrail-style
-    rejections for "we couldn't safely interpret this" are produced.
-    Explicit malicious-intent guardrails (SQL injection, prompt
-    injection, etc.) belong in guardrails.py and should run before this
-    is ever called.
+    Fuse the LLM's QueryFrame with resolver.py's deterministic camera
+    and date/time resolution into a single ResolvedQuery.
     """
 
     if frame.intent == "unsupported":

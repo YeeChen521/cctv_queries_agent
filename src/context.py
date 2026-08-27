@@ -25,7 +25,7 @@ same backend can later be reused behind a CLI or API unchanged.
 
 from dataclasses import dataclass, field
 
-from .model import QueryFrame
+from .query_schema import QueryFrame
 
 MAX_HISTORY_TURNS = 6
 
