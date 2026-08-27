@@ -1,0 +1,6 @@
+streamlit>=1.38
+openai>=1.40
+pydantic>=2.7
+python-dotenv>=1.0
+rapidfuzz>=3.9
+pytest>=8.0
