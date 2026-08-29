@@ -1,0 +1,49 @@
+{
+  "gemini": {
+    "provider": "gemini",
+    "num_cases": 0,
+    "num_llm_calls": 0,
+    "schema_or_api_failures": 0,
+    "failures_by_type": {
+      "api_error_or_rate_limit": 0,
+      "model_output_error": 0
+    },
+    "failed_case_ids": {
+      "api_error": [],
+      "api_rate_limit": [],
+      "model_output_error": []
+    },
+    "level1_field_accuracy": {
+      "intent": null,
+      "camera": null,
+      "date": null,
+      "time": null,
+      "weekday_recurring": null,
+      "overall": null
+    },
+    "level2_end_to_end_accuracy": {
+      "overall": null,
+      "by_category": {}
+    },
+    "latency_ms": {
+      "count": 0,
+      "mean": null,
+      "min": null,
+      "max": null,
+      "p50": null
+    },
+    "token_usage": {
+      "calls_with_usage": 0,
+      "total_input_tokens": 0,
+      "total_output_tokens": 0
+    },
+    "cost_usd": null,
+    "pricing_used_usd_per_1m": {
+      "input": 0.5,
+      "output": 3.0
+    },
+    "stopped_early": true,
+    "cases_completed": 0,
+    "cases_total": 3
+  }
+}

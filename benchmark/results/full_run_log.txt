@@ -1,0 +1,202 @@
+
+=== Running 60 cases against provider=anthropic ===
+  [1/60] cam_std_01 (camera_standard)
+  [2/60] cam_std_02 (camera_standard)
+  [3/60] cam_std_03 (camera_standard)
+  [4/60] cam_std_04 (camera_standard)
+  [5/60] exact_date_01 (exact_date)
+  [6/60] exact_date_02 (exact_date)
+  [7/60] exact_date_03 (exact_date)
+  [8/60] exact_date_04 (exact_date)
+  [9/60] rel_date_01 (relative_date)
+  [10/60] rel_date_02 (relative_date)
+  [11/60] rel_date_03 (relative_date)
+  [12/60] rel_date_04 (relative_date)
+  [13/60] rel_date_05 (relative_date)
+  [14/60] rel_date_06 (relative_date)
+  [15/60] time_range_01 (time_range)
+  [16/60] time_range_02 (time_range)
+  [17/60] time_range_03 (time_range)
+  [18/60] date_range_01 (date_range)
+  [19/60] date_range_02 (date_range)
+  [20/60] date_range_03 (date_range)
+  [21/60] recurring_01 (recurring)
+  [22/60] recurring_02 (recurring)
+  [23/60] recurring_03 (recurring)
+  [24/60] recurring_04 (recurring)
+  [25/60] alias_01 (camera_aliases)
+  [26/60] alias_02 (camera_aliases)
+  [27/60] alias_03 (camera_aliases)
+  [28/60] alias_04 (camera_aliases)
+  [29/60] typo_01 (camera_typos)
+  [30/60] typo_02 (camera_typos)
+  [31/60] typo_03 (camera_typos)
+  [32/60] typo_04 (camera_typos)
+  [33/60] followup_01 (conversational_followup)
+  [34/60] followup_02 (conversational_followup)
+  [35/60] followup_03 (conversational_followup)
+  [36/60] followup_04 (conversational_followup)
+  [37/60] followup_05 (conversational_followup)
+  [38/60] followup_06 (conversational_followup)
+  [39/60] ambig_01 (ambiguous_queries)
+  [40/60] ambig_02 (ambiguous_queries)
+  [41/60] ambig_03 (ambiguous_queries)
+  [42/60] ambig_04 (ambiguous_queries)
+  [43/60] unusual_date_01 (unusual_date_expressions)
+  [44/60] unusual_date_02 (unusual_date_expressions)
+  [45/60] unusual_date_03 (unusual_date_expressions)
+  [46/60] invalid_01 (invalid_requests)
+  [47/60] invalid_02 (invalid_requests)
+  [48/60] invalid_03 (invalid_requests)
+  [49/60] prompt_inj_01 (prompt_injection)
+  [50/60] prompt_inj_02 (prompt_injection)
+  [51/60] prompt_inj_03 (prompt_injection)
+  [52/60] prompt_inj_04 (prompt_injection)
+  [53/60] sql_inj_01 (sql_injection)
+  [54/60] sql_inj_02 (sql_injection)
+  [55/60] sql_inj_03 (sql_injection)
+  [56/60] sql_inj_04 (sql_injection)
+  [57/60] destructive_01 (destructive_requests)
+  [58/60] destructive_02 (destructive_requests)
+  [59/60] destructive_03 (destructive_requests)
+  [60/60] destructive_04 (destructive_requests)
+
+--- anthropic summary ---
+{
+  "provider": "anthropic",
+  "num_cases": 60,
+  "num_llm_calls": 58,
+  "schema_or_api_failures": 0,
+  "failures_by_type": {
+    "api_error_or_rate_limit": 0,
+    "model_output_error": 0
+  },
+  "failed_case_ids": {
+    "api_error": [],
+    "api_rate_limit": [],
+    "model_output_error": []
+  },
+  "level1_field_accuracy": {
+    "intent": 0.9137931034482759,
+    "camera": 1.0,
+    "date": 0.9130434782608695,
+    "time": 1.0,
+    "weekday_recurring": 1.0,
+    "overall": 0.8793103448275862
+  },
+  "level2_end_to_end_accuracy": {
+    "overall": 0.9833333333333333,
+    "by_category": {
+      "camera_standard": 1.0,
+      "exact_date": 1.0,
+      "relative_date": 1.0,
+      "time_range": 1.0,
+      "date_range": 0.6666666666666666,
+      "recurring": 1.0,
+      "camera_aliases": 1.0,
+      "camera_typos": 1.0,
+      "conversational_followup": 1.0,
+      "ambiguous_queries": 1.0,
+      "unusual_date_expressions": 1.0,
+      "invalid_requests": 1.0,
+      "prompt_injection": 1.0,
+      "sql_injection": 1.0,
+      "destructive_requests": 1.0
+    }
+  },
+  "latency_ms": {
+    "count": 58,
+    "mean": 3200.6078827644474,
+    "min": 2867.519299965352,
+    "max": 4675.8287999546155,
+    "p50": 3092.188799986616
+  },
+  "token_usage": {
+    "calls_with_usage": 58,
+    "total_input_tokens": 172831,
+    "total_output_tokens": 6111
+  },
+  "cost_usd": 0.406772,
+  "pricing_used_usd_per_1m": {
+    "input": 2.0,
+    "output": 10.0
+  }
+}
+
+=== Running 60 cases against provider=gemini ===
+  [1/60] cam_std_01 (camera_standard)
+Direct use of automatic function calling (AFC) in Models.generate_content is not recommended. Instead, we recommend to use AFC in Chat.send_message. Similarly, direct use of AFC in Models.generate_content_stream is not recommended. Instead, we recommend to use AFC in Chat.send_message_stream.
+  [2/60] cam_std_02 (camera_standard)
+  [3/60] cam_std_03 (camera_standard)
+  [4/60] cam_std_04 (camera_standard)
+  [5/60] exact_date_01 (exact_date)
+  [6/60] exact_date_02 (exact_date)
+  [7/60] exact_date_03 (exact_date)
+  [8/60] exact_date_04 (exact_date)
+  [9/60] rel_date_01 (relative_date)
+  [10/60] rel_date_02 (relative_date)
+  [11/60] rel_date_03 (relative_date)
+  [12/60] rel_date_04 (relative_date)
+    (rate limited, retrying in 47s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+  [13/60] rel_date_05 (relative_date)
+    (rate limited, retrying in 47s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+  [14/60] rel_date_06 (relative_date)
+    (rate limited, retrying in 47s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+  [15/60] time_range_01 (time_range)
+    (rate limited, retrying in 47s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+  [16/60] time_range_02 (time_range)
+    (rate limited, retrying in 47s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+  [17/60] time_range_03 (time_range)
+    (rate limited, retrying in 47s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+  [18/60] date_range_01 (date_range)
+    (rate limited, retrying in 47s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+  [19/60] date_range_02 (date_range)
+    (rate limited, retrying in 47s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+  [20/60] date_range_03 (date_range)
+    (rate limited, retrying in 47s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+  [21/60] recurring_01 (recurring)
+    (rate limited, retrying in 47s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+  [22/60] recurring_02 (recurring)
+    (rate limited, retrying in 47s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)
+    (rate limited, retrying in 60s...)

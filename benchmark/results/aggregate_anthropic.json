@@ -1,0 +1,60 @@
+{
+  "provider": "anthropic",
+  "num_cases": 60,
+  "num_llm_calls": 58,
+  "schema_or_api_failures": 0,
+  "failures_by_type": {
+    "api_error_or_rate_limit": 0,
+    "model_output_error": 0
+  },
+  "failed_case_ids": {
+    "api_error": [],
+    "api_rate_limit": [],
+    "model_output_error": []
+  },
+  "level1_field_accuracy": {
+    "intent": 0.9137931034482759,
+    "camera": 1.0,
+    "date": 0.9130434782608695,
+    "time": 1.0,
+    "weekday_recurring": 1.0,
+    "overall": 0.8793103448275862
+  },
+  "level2_end_to_end_accuracy": {
+    "overall": 0.9833333333333333,
+    "by_category": {
+      "camera_standard": 1.0,
+      "exact_date": 1.0,
+      "relative_date": 1.0,
+      "time_range": 1.0,
+      "date_range": 0.6666666666666666,
+      "recurring": 1.0,
+      "camera_aliases": 1.0,
+      "camera_typos": 1.0,
+      "conversational_followup": 1.0,
+      "ambiguous_queries": 1.0,
+      "unusual_date_expressions": 1.0,
+      "invalid_requests": 1.0,
+      "prompt_injection": 1.0,
+      "sql_injection": 1.0,
+      "destructive_requests": 1.0
+    }
+  },
+  "latency_ms": {
+    "count": 58,
+    "mean": 3200.6078827644474,
+    "min": 2867.519299965352,
+    "max": 4675.8287999546155,
+    "p50": 3092.188799986616
+  },
+  "token_usage": {
+    "calls_with_usage": 58,
+    "total_input_tokens": 172831,
+    "total_output_tokens": 6111
+  },
+  "cost_usd": 0.406772,
+  "pricing_used_usd_per_1m": {
+    "input": 2.0,
+    "output": 10.0
+  }
+}

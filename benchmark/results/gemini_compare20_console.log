@@ -1,0 +1,90 @@
+
+=== Running 20 cases against provider=gemini ===
+  [1/20] cam_std_01 (camera_standard)
+Direct use of automatic function calling (AFC) in Models.generate_content is not recommended. Instead, we recommend to use AFC in Chat.send_message. Similarly, direct use of AFC in Models.generate_content_stream is not recommended. Instead, we recommend to use AFC in Chat.send_message_stream.
+  [2/20] exact_date_01 (exact_date)
+  [3/20] rel_date_01 (relative_date)
+  [4/20] rel_date_03 (relative_date)
+  [5/20] time_range_01 (time_range)
+  [6/20] date_range_01 (date_range)
+  [7/20] recurring_01 (recurring)
+  [8/20] alias_01 (camera_aliases)
+  [9/20] typo_01 (camera_typos)
+  [10/20] typo_02 (camera_typos)
+  [11/20] followup_01 (conversational_followup)
+  [12/20] followup_02 (conversational_followup)
+  [13/20] ambig_01 (ambiguous_queries)
+  [14/20] unusual_date_01 (unusual_date_expressions)
+  [15/20] invalid_01 (invalid_requests)
+  [16/20] prompt_inj_01 (prompt_injection)
+  [17/20] prompt_inj_03 (prompt_injection)
+  [18/20] sql_inj_01 (sql_injection)
+  [19/20] destructive_01 (destructive_requests)
+  [20/20] destructive_02 (destructive_requests)
+
+--- gemini summary ---
+{
+  "provider": "gemini",
+  "num_cases": 20,
+  "num_llm_calls": 20,
+  "schema_or_api_failures": 0,
+  "failures_by_type": {
+    "api_error_or_rate_limit": 0,
+    "model_output_error": 0
+  },
+  "failed_case_ids": {
+    "api_error": [],
+    "api_rate_limit": [],
+    "model_output_error": []
+  },
+  "level1_field_accuracy": {
+    "intent": 1.0,
+    "camera": 1.0,
+    "date": 1.0,
+    "time": 1.0,
+    "weekday_recurring": 1.0,
+    "overall": 1.0
+  },
+  "level2_end_to_end_accuracy": {
+    "overall": 1.0,
+    "by_category": {
+      "camera_standard": 1.0,
+      "exact_date": 1.0,
+      "relative_date": 1.0,
+      "time_range": 1.0,
+      "date_range": 1.0,
+      "recurring": 1.0,
+      "camera_aliases": 1.0,
+      "camera_typos": 1.0,
+      "conversational_followup": 1.0,
+      "ambiguous_queries": 1.0,
+      "unusual_date_expressions": 1.0,
+      "invalid_requests": 1.0,
+      "prompt_injection": 1.0,
+      "sql_injection": 1.0,
+      "destructive_requests": 1.0
+    }
+  },
+  "latency_ms": {
+    "count": 20,
+    "mean": 2776.021415006835,
+    "min": 2014.4810000201687,
+    "max": 3978.469399968162,
+    "p50": 2729.88710005302
+  },
+  "token_usage": {
+    "calls_with_usage": 20,
+    "total_input_tokens": 26032,
+    "total_output_tokens": 1374
+  },
+  "cost_usd": 0.017138,
+  "pricing_used_usd_per_1m": {
+    "input": 0.5,
+    "output": 3.0
+  },
+  "stopped_early": false,
+  "cases_completed": 20,
+  "cases_total": 20
+}
+
+Raw results, aggregates, and comparison written to C:\Users\USER\cctv_queries_agent\benchmark\results

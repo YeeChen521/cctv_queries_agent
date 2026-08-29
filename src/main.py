@@ -15,6 +15,19 @@ Run with:
     streamlit run src/main.py
 """
 
+import sys
+from pathlib import Path
+
+# Streamlit runs this file with its own directory (src/) inserted into
+# sys.path, not the project root — so "import src.agent" fails with
+# "No module named 'src'" even though the src/ package is right there.
+# Adding the project root (this file's grandparent) here makes the
+# import work regardless of the current working directory or how
+# Streamlit was launched.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 import streamlit as st
 
 from src.agent import AgentResponse, QueryAgent

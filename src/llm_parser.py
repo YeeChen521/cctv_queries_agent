@@ -73,7 +73,13 @@ class OpenAIProvider:
     """Uses OpenAI's Responses API structured-output parsing (`responses.parse`)."""
 
     def __init__(self, api_key: str, model: str) -> None:
-        from openai import OpenAI  # lazy: only needed for this provider
+        try:
+            from openai import OpenAI  # lazy: only needed for this provider
+        except ImportError as exc:
+            raise RuntimeError(
+                "LLM_PROVIDER=openai requires the 'openai' package. "
+                "Install it with: pip install openai"
+            ) from exc
 
         self._client = OpenAI(api_key=api_key)
         self._model = model
@@ -106,7 +112,14 @@ class AnthropicProvider:
     """
 
     def __init__(self, api_key: str, model: str) -> None:
-        from anthropic import Anthropic, transform_schema  # lazy import
+        try:
+            from anthropic import Anthropic, transform_schema  # lazy import
+        except ImportError as exc:
+            raise RuntimeError(
+                "LLM_PROVIDER=anthropic requires the 'anthropic' package "
+                "(version 1.1 or later, for transform_schema). "
+                "Install it with: pip install anthropic"
+            ) from exc
 
         self._client = Anthropic(api_key=api_key)
         self._model = model
@@ -115,6 +128,10 @@ class AnthropicProvider:
         # constraints into field descriptions). Doing this once here,
         # rather than per-request, avoids repeating the work on every call.
         self._schema = transform_schema(QueryFrame.model_json_schema())
+        # Populated after every parse() call with the SDK's own reported
+        # token counts, for callers (e.g. the benchmark harness) that need
+        # real usage/cost data without re-deriving it via a tokenizer.
+        self.last_usage: dict | None = None
 
     def parse(self, system_prompt: str, user_content: str) -> QueryFrame:
         response = self._client.messages.create(
@@ -127,8 +144,22 @@ class AnthropicProvider:
             },
         )
 
-        raw_json = response.content[0].text
-        return QueryFrame.model_validate_json(raw_json)
+        self.last_usage = {
+            "input_tokens": response.usage.input_tokens,
+            "output_tokens": response.usage.output_tokens,
+        }
+
+        # Claude Sonnet 5 has adaptive thinking on by default, so
+        # response.content[0] is sometimes a ThinkingBlock rather than
+        # the text block carrying the structured-output JSON — find the
+        # text block explicitly instead of assuming it's first.
+        text_block = next(
+            (block for block in response.content if getattr(block, "type", None) == "text"),
+            None,
+        )
+        if text_block is None:
+            raise RuntimeError("Claude did not return a text content block.")
+        return QueryFrame.model_validate_json(text_block.text)
 
 
 class GeminiProvider:
@@ -141,12 +172,27 @@ class GeminiProvider:
     """
 
     def __init__(self, api_key: str, model: str) -> None:
-        from google import genai  # lazy import
-        from google.genai import types
+        try:
+            from google import genai  # lazy import
+            from google.genai import types
+        except ImportError as exc:
+            raise RuntimeError(
+                "LLM_PROVIDER=gemini requires the 'google-genai' package. "
+                "Install it with: pip install google-genai\n"
+                "If it's already installed and this still fails, you likely "
+                "have a conflicting, unrelated package literally named "
+                "'google' installed (an old, unmaintained PyPI package that "
+                "clashes with the 'google' namespace). Check with "
+                "`pip show google` — if that finds something, run "
+                "`pip uninstall google` and then "
+                "`pip install --force-reinstall google-genai`."
+            ) from exc
 
         self._client = genai.Client(api_key=api_key)
         self._model = model
         self._types = types
+        # See AnthropicProvider.last_usage.
+        self.last_usage: dict | None = None
 
     def parse(self, system_prompt: str, user_content: str) -> QueryFrame:
         response = self._client.models.generate_content(
@@ -158,6 +204,13 @@ class GeminiProvider:
                 response_schema=QueryFrame,
             ),
         )
+
+        usage = getattr(response, "usage_metadata", None)
+        if usage is not None:
+            self.last_usage = {
+                "input_tokens": usage.prompt_token_count,
+                "output_tokens": usage.candidates_token_count,
+            }
 
         query_frame = response.parsed
         if query_frame is None:
@@ -186,7 +239,10 @@ _PROVIDER_FACTORIES = {
     ),
     "gemini": lambda: GeminiProvider(
         api_key=_require_env("GEMINI_API_KEY"),
-        model=os.getenv("GEMINI_MODEL", "gemini-3-flash"),
+        # "gemini-3-flash" (without "-preview") 404s against the current
+        # Gemini API — the only deployed model matching that name today
+        # is the preview build. See README "Design Decisions" for details.
+        model=os.getenv("GEMINI_MODEL", "gemini-3-flash-preview"),
     ),
 }
 
@@ -204,7 +260,24 @@ def _build_provider() -> LLMProvider:
     return factory()
 
 
-_provider: LLMProvider = _build_provider()
+# The provider is built lazily, on the first parse_query() call, rather
+# than at import time. Building it eagerly here would instantiate the
+# configured provider (importing its SDK and requiring its API key) the
+# moment this module is imported — which happens transitively whenever
+# anything imports src.agent, including Streamlit startup and the
+# LLM-mocked tests that never actually call the model. A missing SDK or
+# API key for the selected LLM_PROVIDER would then crash those code
+# paths even though they don't need a live provider. Deferring the build
+# keeps import side-effect-free: only an actual parse triggers it.
+_provider: LLMProvider | None = None
+
+
+def _get_provider() -> LLMProvider:
+    global _provider
+    if _provider is None:
+        _provider = _build_provider()
+    return _provider
+
 
 # ============================================================================
 # System Prompt
@@ -426,7 +499,7 @@ The output format as below:
     recurring: Boolean
 )
 
-If any infomation in the output is not mentioned by the user, fill with N/A. DONT HALLUCINATE YOURSELF.
+If any information in the output is not mentioned by the user, leave that field null/empty. Never fill a missing field with a placeholder string such as "N/A" or "unknown" — the schema expects an absent value, not a string. DO NOT HALLUCINATE.
 Do not generate SQL.
 Do not explain your reasoning.
 """
@@ -473,7 +546,7 @@ Use this context only to resolve relevant follow-up references.
 Do not introduce constraints that are unrelated to the current request.
 """
 
-    query_frame = _provider.parse(
+    query_frame = _get_provider().parse(
         system_prompt=SYSTEM_PROMPT,
         user_content=context_message + "\nCurrent user request:\n" + user_query,
     )

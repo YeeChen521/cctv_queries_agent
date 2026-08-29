@@ -568,3 +568,71 @@ Destructive SQL
 Run the test suite with:
 
 pytest
+13. Model Benchmark: Claude Sonnet 5 vs Gemini 3 Flash Preview
+
+A separate evaluation harness, benchmark/benchmark_models.py, measures how well a given LLM provider performs the natural-language understanding step (src/llm_parser.py) without changing any production code. It drives the real, unmodified pipeline and grades each case at two levels:
+
+Level 1 (LLM parsing)
+
+The raw QueryFrame the model extracts from a message, graded field by field (intent, camera, date, time, weekday/recurring) against a hand-authored ideal frame. Camera and date/time fields are graded through the same deterministic resolver used in production, so the model is never penalized for leaving date math to the resolver — only for extracting the wrong camera, expression, or field.
+
+Level 2 (end-to-end)
+
+The full QueryAgent.run() pipeline — guardrails, LLM, context merge, resolver, query builder, SQL guardrail, database — graded against a gold ResolvedQuery obtained by feeding the same ideal frame(s) through the production context-merge and resolver code.
+
+Guardrail-blocked cases (SQL injection, prompt injection, explicit destructive requests) never reach the LLM at all, so both providers necessarily score identically on those; they're included for completeness but aren't a point of comparison.
+
+Full benchmark dataset
+
+benchmark/test_cases.json defines 60 fixed cases across 15 categories:
+
+camera_standard (4), exact_date (4), relative_date (6), time_range (3), date_range (3), recurring (4), camera_aliases (4), camera_typos (4), conversational_followup (6), ambiguous_queries (4), unusual_date_expressions (3), invalid_requests (3), prompt_injection (4), sql_injection (4), destructive_requests (4)
+
+Both providers are run against the exact same cases with the exact same system prompt — no per-provider prompt tuning.
+
+Why a 20-case stratified subset for the Claude/Gemini comparison
+
+The full 60-case suite was run to completion once against Claude Sonnet 5 (see benchmark/results/full_run_log.txt / raw_anthropic.json): 60/60 cases completed, Level-2 end-to-end accuracy 98.3%, Level-1 field accuracy 87.9%.
+
+A full 60-case run against Gemini 3 Flash Preview was not completed with the original API key/project. Three distinct things were observed, and are kept separate here rather than merged into one claim:
+
+Repeated rate-limit retries early in the run. benchmark/results/full_run_log.txt shows the harness backing off and retrying against 429 responses (e.g. "rate limited, retrying in 47s...", then "...60s..."). The raw API error text for these retries was not preserved in that log — only the derived retry delay was — so whether each individual retry was a per-minute or a per-day cap cannot be reconstructed after the fact from what's in this repo.
+
+A known Gemini free-tier daily request cap that the harness is specifically built to detect. benchmark/benchmark_models.py has dedicated handling (_DAILY_QUOTA_MARKER) for 429 responses whose quotaId is GenerateRequestsPerDayPerProjectPerModel-FreeTier, documented in its comments as confirmed against a live 429 body during earlier development of this benchmark. That confirms this daily cap is a real, known behavior of the Gemini free tier that this project has encountered at some point — it is not, on its own, evidence that this specific cap (or a "20 requests/day" figure) was what stopped this particular 60-case run; no log file in this repo captures that raw error text for this run, so that detail is not independently verifiable here.
+
+A billing error, directly captured twice. benchmark/results/checkpoint_gemini.jsonl, and a live 1-case check repeated in this session before switching keys, both returned the same error: HTTP 429 RESOURCE_EXHAUSTED, "Your prepayment credits are depleted." This is a prepaid-credit balance issue on that Gemini project — distinct from a per-minute or per-day request quota — and does not reset on its own.
+
+The blocker was resolved by switching to a different, funded Gemini API key/project; the 20-case comparison below was run against that key.
+
+To get a direct, apples-to-apples comparison between the two providers without depending on an unresolved billing issue for the full suite, a fixed 20-case subset was selected, stratified across all 15 categories (at least one case per category, with extra weight on categories large enough to include both a guardrail-blocked case and a case designed to reach the LLM itself — relative_date, camera_typos, conversational_followup, prompt_injection, destructive_requests). Both providers were run against this identical 20-case subset using the harness's --case-ids flag, which writes isolated checkpoint/result files (*_compare20.*) so this run can never be skipped or contaminated by an unrelated full-run or smoke-test checkpoint.
+
+The 20 case IDs used:
+
+cam_std_01 (camera_standard), exact_date_01 (exact_date), rel_date_01 (relative_date), rel_date_03 (relative_date), time_range_01 (time_range), date_range_01 (date_range), recurring_01 (recurring), alias_01 (camera_aliases), typo_01 (camera_typos), typo_02 (camera_typos), followup_01 (conversational_followup), followup_02 (conversational_followup), ambig_01 (ambiguous_queries), unusual_date_01 (unusual_date_expressions), invalid_01 (invalid_requests), prompt_inj_01 (prompt_injection), prompt_inj_03 (prompt_injection), sql_inj_01 (sql_injection), destructive_01 (destructive_requests), destructive_02 (destructive_requests)
+
+Both models were verified to have been evaluated on exactly these same 20 case IDs, in the same order (checked programmatically against benchmark/results/raw_anthropic_compare20.json and raw_gemini_compare20.json). The Claude figures below were extracted from the already-completed full 60-case Claude run (same 20 cases, same grading code) rather than re-run, since a valid result already existed for each of them.
+
+Results (20-case stratified subset)
+
+                        Claude Sonnet 5     Gemini 3 Flash Preview
+Cases completed         20 / 20              20 / 20
+Level-1 accuracy        100%                 100%
+Level-2 accuracy        100%                 100%
+Failures                 0                    0
+Mean latency             3142 ms              2776 ms
+p50 latency               3033 ms              2730 ms
+Input tokens             59,651               26,032
+Output tokens             2,121                1,374
+Cost (USD)               $0.1405              $0.0171
+
+Per-category Level-2 accuracy (both providers): 100% in every one of the 15 categories represented — camera_standard, exact_date, relative_date, time_range, date_range, recurring, camera_aliases, camera_typos, conversational_followup, ambiguous_queries, unusual_date_expressions, invalid_requests, prompt_injection, sql_injection, destructive_requests.
+
+Limitations of this comparison
+
+This is a 20-case subset, not the full 60-case suite — the full Claude run (98.3% Level-2, 87.9% Level-1, with one weaker category — date_range at 66.7%) shows the full corpus is harder than this subset, which happened to land at a ceiling (100%/100%) for both providers. A 20-case, all-pass result cannot show a meaningful accuracy gap between the two models; it should be read only as "both providers handled this stratified sample correctly," not as a claim of equivalent accuracy on the full corpus. The latency and cost figures are real and directly comparable (same cases, same pipeline), and Gemini 3 Flash Preview was markedly cheaper and used fewer tokens per case on this subset. Gemini has not been evaluated on the full 60-case suite — only this 20-case subset has been run, against the new funded key; a full 60-case Gemini run is a separate exercise that has not yet been performed (it is no longer blocked by credits, just not yet run).
+
+How to reproduce
+
+python benchmark/benchmark_models.py --case-ids cam_std_01,exact_date_01,rel_date_01,rel_date_03,time_range_01,date_range_01,recurring_01,alias_01,typo_01,typo_02,followup_01,followup_02,ambig_01,unusual_date_01,invalid_01,prompt_inj_01,prompt_inj_03,sql_inj_01,destructive_01,destructive_02 --run-tag compare20
+
+Results are written to benchmark/results/raw_<provider>_compare20.json, aggregate_<provider>_compare20.json, and comparison_compare20.json. To run the full 60-case suite for both providers instead: python benchmark/benchmark_models.py

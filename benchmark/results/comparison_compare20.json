@@ -1,0 +1,129 @@
+{
+  "anthropic": {
+    "provider": "anthropic",
+    "num_cases": 20,
+    "num_llm_calls": 20,
+    "schema_or_api_failures": 0,
+    "failures_by_type": {
+      "api_error_or_rate_limit": 0,
+      "model_output_error": 0
+    },
+    "failed_case_ids": {
+      "api_error": [],
+      "api_rate_limit": [],
+      "model_output_error": []
+    },
+    "level1_field_accuracy": {
+      "intent": 1.0,
+      "camera": 1.0,
+      "date": 1.0,
+      "time": 1.0,
+      "weekday_recurring": 1.0,
+      "overall": 1.0
+    },
+    "level2_end_to_end_accuracy": {
+      "overall": 1.0,
+      "by_category": {
+        "camera_standard": 1.0,
+        "exact_date": 1.0,
+        "relative_date": 1.0,
+        "time_range": 1.0,
+        "date_range": 1.0,
+        "recurring": 1.0,
+        "camera_aliases": 1.0,
+        "camera_typos": 1.0,
+        "conversational_followup": 1.0,
+        "ambiguous_queries": 1.0,
+        "unusual_date_expressions": 1.0,
+        "invalid_requests": 1.0,
+        "prompt_injection": 1.0,
+        "sql_injection": 1.0,
+        "destructive_requests": 1.0
+      }
+    },
+    "latency_ms": {
+      "count": 20,
+      "mean": 3142.444900004193,
+      "min": 2883.016800042242,
+      "max": 4675.8287999546155,
+      "p50": 3033.028700039722
+    },
+    "token_usage": {
+      "calls_with_usage": 20,
+      "total_input_tokens": 59651,
+      "total_output_tokens": 2121
+    },
+    "cost_usd": 0.140512,
+    "pricing_used_usd_per_1m": {
+      "input": 2.0,
+      "output": 10.0
+    },
+    "stopped_early": false,
+    "cases_completed": 20,
+    "cases_total": 20,
+    "_provenance": "Extracted from the existing full 60-case raw_anthropic.json run (not re-run); same 20 case IDs as the Gemini compare20 run."
+  },
+  "gemini": {
+    "provider": "gemini",
+    "num_cases": 20,
+    "num_llm_calls": 20,
+    "schema_or_api_failures": 0,
+    "failures_by_type": {
+      "api_error_or_rate_limit": 0,
+      "model_output_error": 0
+    },
+    "failed_case_ids": {
+      "api_error": [],
+      "api_rate_limit": [],
+      "model_output_error": []
+    },
+    "level1_field_accuracy": {
+      "intent": 1.0,
+      "camera": 1.0,
+      "date": 1.0,
+      "time": 1.0,
+      "weekday_recurring": 1.0,
+      "overall": 1.0
+    },
+    "level2_end_to_end_accuracy": {
+      "overall": 1.0,
+      "by_category": {
+        "camera_standard": 1.0,
+        "exact_date": 1.0,
+        "relative_date": 1.0,
+        "time_range": 1.0,
+        "date_range": 1.0,
+        "recurring": 1.0,
+        "camera_aliases": 1.0,
+        "camera_typos": 1.0,
+        "conversational_followup": 1.0,
+        "ambiguous_queries": 1.0,
+        "unusual_date_expressions": 1.0,
+        "invalid_requests": 1.0,
+        "prompt_injection": 1.0,
+        "sql_injection": 1.0,
+        "destructive_requests": 1.0
+      }
+    },
+    "latency_ms": {
+      "count": 20,
+      "mean": 2776.021415006835,
+      "min": 2014.4810000201687,
+      "max": 3978.469399968162,
+      "p50": 2729.88710005302
+    },
+    "token_usage": {
+      "calls_with_usage": 20,
+      "total_input_tokens": 26032,
+      "total_output_tokens": 1374
+    },
+    "cost_usd": 0.017138,
+    "pricing_used_usd_per_1m": {
+      "input": 0.5,
+      "output": 3.0
+    },
+    "stopped_early": false,
+    "cases_completed": 20,
+    "cases_total": 20
+  }
+}
