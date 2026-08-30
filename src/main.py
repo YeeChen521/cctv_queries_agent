@@ -28,6 +28,18 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+# --- Workaround for an unrelated environment landmine -----------------------
+# A personal script literally named `outcome.py` (unrelated to this project)
+# sits directly in the Python install root, which is on sys.path by default
+# on Windows. That shadows the real `outcome` package (a transitive dependency
+# of `trio`/`httpcore2`, which the `anthropic` SDK pulls in) and makes it
+# block on input(). Strip that one path entry — for this process only, no
+# files are touched — before importing anything that depends on it.
+import sysconfig
+
+_INSTALL_ROOT = str(Path(sysconfig.get_paths()["stdlib"]).parent)
+sys.path = [p for p in sys.path if p != _INSTALL_ROOT]
+
 import streamlit as st
 
 from src.agent import AgentResponse, QueryAgent
